@@ -8,7 +8,7 @@ import numpy as np
 import sys
 
 # YOLO model
-model = YOLO(r"C:\Users\NBC\Desktop\DefectiveRollerDetection\OldModels\Bigfacelatest.pt")
+model = YOLO(r"C:\Users\NBC\Desktop\DefectiveRollerDetection\OldModels\ODlatestmodel.pt")
 
 # Shared frame buffer and roller queue
 frame_shape = (960, 1280, 3)
@@ -34,16 +34,16 @@ def trigger_slot_opening(plc_client, defect_detected):
     try:
         data = bytearray(2)
         if defect_detected:
-            set_bool(data, byte_index=1, bool_index=1, value=True)
+            set_bool(data, byte_index=1, bool_index=3, value=True)
         else:
-            set_bool(data, byte_index=1, bool_index=0, value=True)
+            set_bool(data, byte_index=1, bool_index=2, value=True)
         plc_client.write_area(snap7.type.Areas.DB, 86, 0, data)
 
         # Reset signals after a short delay
-    #time.sleep(0.1)
+        #time.sleep(0.1)
         data = bytearray(2)
-        set_bool(data, byte_index=1, bool_index=1, value=False)
-        set_bool(data, byte_index=1, bool_index=0, value=False)
+        set_bool(data, byte_index=1, bool_index=3, value=False)
+        set_bool(data, byte_index=1, bool_index=2, value=False)
         plc_client.write_area(snap7.type.Areas.DB, 86, 0, data)
     except Exception as e:
         print(f"Error triggering slot opening: {e}")
@@ -82,46 +82,35 @@ def process_rollers(shared_frame, frame_lock, roller_queue):
         return  # Exit the process if PLC connection fails
 
     roller_detected = False
-    roller_frames = []
-    frame_counter = 0
 
     while True:
-        if read_proximity_status(plc, byte_index=0, bool_index=0) and not roller_detected:
+        if read_proximity_status(plc, byte_index=1, bool_index=4) and not roller_detected:
             roller_detected = True
-            frame_results = []
+            with frame_lock:
+                np_frame = np.frombuffer(shared_frame.get_obj(), dtype=np.uint8).reshape(frame_shape)
+                frame = np_frame.copy()
 
-            while len(frame_results) < 3:  # Collect three frames per roller
-                frame_counter += 1
-                with frame_lock:
-                    np_frame = np.frombuffer(shared_frame.get_obj(), dtype=np.uint8).reshape(frame_shape)
-                    frame = np_frame.copy()
+            # Find the class index for 'damage'
+            defect_class_index = next((key for key, value in model.names.items() if value == 'damage'), None)
+            if defect_class_index is None:
+                print("Defect class 'damage' not found in model.")
+                continue
 
-                # Perform inference
-                results = model.predict(frame, device=0, conf=0.6)
+            # Perform inference
+            results = model.predict(frame, device=0, conf=0.2)
+            defect_detected = False
+            for box in results[0].boxes.data:
+                if int(box[-1]) == defect_class_index:
+                    defect_detected = True
+                    break
+            roller_queue.put(defect_detected)
 
-                # Check for defects in this frame
-                defect_detected = False
-                for box in results[0].boxes.data:
-                    if model.names[int(box[-1])] == "damage":  # Assuming 'damage' is the defect class
-                        defect_detected = True
-                        break
-
-                frame_results.append(defect_detected)
-
-                # Annotate and save the frame for debugging
-                for box in results[0].boxes.data:
-                    (x1, y1, x2, y2) = map(int, box[:4])
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                timestamp = int(time.time())
-                cv2.imwrite(f"captured/roller_{frame_counter}_{timestamp}.jpg", frame)
-
-                # Wait for the next frame (simulate real-world time delay)
-                time.sleep(0.1)
-
-            # Final decision based on three frames
-            final_decision = any(frame_results)  # Reject if any frame detects a defect
-            roller_queue.put(final_decision)
-            print(f"Roller decision based on 3 frames: {'Defective' if final_decision else 'Good'}")
+            # Save annotated frame for debugging
+            for box in results[0].boxes.data:
+                (x1, y1, x2, y2) = map(int, box[:4])
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            timestamp = int(time.time())
+            cv2.imwrite(f"captured/roller_{timestamp}.jpg", frame)
 
         elif not read_proximity_status(plc, byte_index=0, bool_index=0):
             roller_detected = False
@@ -139,7 +128,7 @@ def handle_slot_control(roller_queue):
         return  # Exit the process if PLC connection fails
 
     while True:
-        if read_proximity_status(plc, byte_index=0, bool_index=1):
+        if read_proximity_status(plc, byte_index=0, bool_index=2):
             if not roller_queue.empty():
                 defect_detected = roller_queue.get()
                 trigger_slot_opening(plc, defect_detected)
@@ -149,9 +138,6 @@ def handle_slot_control(roller_queue):
             queue_size = roller_queue.qsize()
             print(f"Queue size: {queue_size}, Contents: {'Empty' if queue_size == 0 else 'Not Empty'}")
 
-    time.sleep(0.01)  # Prevent tight loop
-
-    plc.disconnect()
 
 def display_frames(shared_frame, frame_lock):
     """Display frames in a CV2 window."""
