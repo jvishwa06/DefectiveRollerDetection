@@ -96,7 +96,6 @@ def capture_frames_bigface(shared_frame_bigface, frame_lock_bigface,frame_shape)
 
     cap.release()
 
-# The rest of the Bigface and OD logic remains untouched.
 
 def handle_slot_control_bigface(roller_queue_bigface,shared_data,command_queue):
     """Control slot mechanism based on second proximity sensor."""
@@ -119,13 +118,9 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
     """Process frames for YOLO inference."""
     print("Starting roller processing...")
     black_frame = np.zeros(frame_shape, dtype=np.uint8)
-    # print("Processing black image with YOLO before starting main loop...")
-
-    # Step 2: Perform YOLO Inference on the Black Image
     try:
         results = model_bigface.predict(black_frame, device=0, conf=0.3)
         print("Black image YOLO processing complete.")
-        # Optionally, handle the results if needed
     except Exception as e:
         print(f"Error during YOLO inference on black image: {e}")
 
@@ -149,9 +144,7 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
                 print("Defect class 'damage' not found in model.")
                 continue
 
-            # Perform inference
             results = model_bigface.predict(frame, device=0, conf=0.5)
-            # print(f"Inference results: {results}")
             defect_detected = any(int(box[-1]) == defect_class_index for box in results[0].boxes.data)
             roller_queue_bigface.put(defect_detected)
             with queue_lock:
@@ -160,7 +153,6 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
                 else:
                     roller_updation_dict[pc]=0
             print("roller dict",roller_updation_dict)
-            # Debugging the queue
             queue_list = []
             while not roller_queue_bigface.empty():
                 item = roller_queue_bigface.get()
@@ -169,7 +161,6 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
                 roller_queue_bigface.put(item)
             print(f"Queue after adding element: {queue_list}")
             
-            # Save annotated frame for debugging
             for box in results[0].boxes.data:
                 (x1, y1, x2, y2) = map(int, box[:4])
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
@@ -210,13 +201,10 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_data_od, proximity_
     black_frame = np.zeros(frame_shape, dtype=np.uint8)
     model_path = r"OldModels\ODlatestmodel.pt"
     yolo = YOLO(model_path)
-    # print("Processing black image with YOLO before starting main loop...")
 
-    # Step 2: Perform YOLO Inference on the Black Image
     try:
         results = yolo.predict(black_frame, device=0, conf=0.3)
         print("Black image YOLO processing complete.")
-        # Optionally, handle the results if needed
     except Exception as e:
         print(f"Error during YOLO inference on black image: {e}")
 
@@ -226,7 +214,6 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_data_od, proximity_
     while True:
         if shared_data["od_presence"] and not roller_detected:
             roller_detected = True
-            # Process frame and YOLO logic
             with frame_lock_od:
                 np_frame = np.frombuffer(shared_frame_od.get_obj(), dtype=np.uint8).reshape(frame_shape)
                 frame = np_frame.copy()
@@ -234,7 +221,6 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_data_od, proximity_
             queue_list = []
             proximity_count_od.value += 1
             pc = proximity_count_od.value
-            # Run YOLO inference
             
             results = yolo.predict(frame, device=0, conf=0.2,save=True)
             detections = [
@@ -242,7 +228,6 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_data_od, proximity_
                 for box in results[0].boxes.data
             ] if results and results[0].boxes.data is not None else []
 
-            # Separate rollers and defects
             roller_boxes = []
             defect_boxes = []
 
@@ -253,21 +238,17 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_data_od, proximity_
                 else:
                     defect_boxes.append((class_name, x_min, y_min, x_max, y_max))
 
-            # Sort rollers left to right by x_min
             roller_boxes.sort(key=lambda box: box[0])
             if pc <= 3:
-                # Update roller defect status in the shared dictionary
                 for i, roller in enumerate(roller_boxes, start=1):
                     roller_id = f"roller_{i}"
                     has_defect = False
                     for defect in defect_boxes:
                         _, x_min, y_min, x_max, y_max = defect
-                        # Check intersection
                         if not (roller[2] < x_min or x_max < roller[0] or roller[3] < y_min or y_max < roller[1]):
                             has_defect = True
                             break
 
-                    # Use OR operation to retain defect status across frames
                     roller_data_od[roller_id] = roller_data_od.get(roller_id, False) or has_defect
             else:
                 for i, roller in enumerate(roller_boxes, start=(pc - 2)):
@@ -275,12 +256,9 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_data_od, proximity_
                     has_defect = False
                     for defect in defect_boxes:
                         _, x_min, y_min, x_max, y_max = defect
-                        # Check intersection
                         if not (roller[2] < x_min or x_max < roller[0] or roller[3] < y_min or y_max < roller[1]):
                             has_defect = True
                             break
-
-                    # Use OR operation to retain defect status across frames
                     roller_data_od[roller_id] = roller_data_od.get(roller_id, False) or has_defect
             if(pc>=3):
                 roller_id = f"roller_{pc-2}"
@@ -296,8 +274,6 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_data_od, proximity_
                 roller_queue_od.put(item)
             print(f"Queue after adding element od: {queue_list}")
             
-
-            # Display for debugging
             print("Shared Roller Data od:", dict(roller_data_od))
             print("Proximity Count:", proximity_count_od.value)
             
@@ -316,14 +292,13 @@ def handle_slot_control_od(roller_queue_od,roller_data_od,shared_data,command_qu
                 command_queue.put(("accept_od" if not defect_detected else "reject_od", None))
                 print(f"Processed roller: {'Defective' if defect_detected else 'Good'}")
 
-            # Log the queue state
             queue_size = roller_queue_od.qsize()
             print(f"Queue size: {queue_size}, Contents: {'Empty' if queue_size == 0 else 'Not Empty'}")
 
         elif not shared_data["od"]:
             a=False
 if __name__ == "__main__":
-    PLC_IP = "172.17.8.17"  # Replace with actual PLC IP
+    PLC_IP = "172.17.8.17"  
     RACK = 0
     SLOT = 1
     DB_NUMBER = 86
@@ -338,7 +313,6 @@ if __name__ == "__main__":
     frame_shape = (960, 1280, 3)
 
 
-    # Initialize manager and shared data
     manager = Manager()
     shared_data = manager.dict()
     shared_data['bigface'] = False
@@ -346,10 +320,8 @@ if __name__ == "__main__":
     shared_data['bigface_presence'] = False
     shared_data['od_presence'] = False
 
-    # Initialize command queue
     command_queue = Queue()
 
-    # Initialize shared memory and variables for multiprocessing
     proximity_count_od = Value('i', 0)
     proximity_count_bigface = Value('i', 0)
 
@@ -359,16 +331,13 @@ if __name__ == "__main__":
     roller_updation_dict = manager.dict()
 
 
-    # Initialize shared frames
     shared_frame_bigface = Array('B', np.zeros(frame_shape, dtype=np.uint8).flatten())
     shared_frame_od = Array('B', np.zeros(frame_shape, dtype=np.uint8).flatten())
 
-    # Initialize locks
     frame_lock_bigface = Lock()
     frame_lock_od = Lock()
     queue_lock = Lock()
 
-    # Start PLC communication process
     plc_process = Process(
         target=plc_communication, 
         args=(PLC_IP, RACK, SLOT, DB_NUMBER, shared_data, command_queue),
@@ -376,7 +345,6 @@ if __name__ == "__main__":
     )
     plc_process.start()
 
-    # Create other processes
     processes = [
         Process(target=capture_frames_bigface, args=(shared_frame_bigface, frame_lock_bigface,frame_shape), daemon=True),
         Process(target=handle_slot_control_bigface, args=(roller_queue_bigface,shared_data,command_queue), daemon=True),
@@ -398,18 +366,15 @@ if __name__ == "__main__":
         )
     ]
 
-    # Start all processes
     for process in processes:
         process.start()
 
-    # Main loop to keep processes running
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("Main: Exiting...")
 
-    # Terminate all processes gracefully
     for process in processes:
         process.terminate()
         process.join()
