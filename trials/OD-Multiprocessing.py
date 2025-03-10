@@ -7,15 +7,12 @@ from snap7.util import set_bool, get_bool
 import numpy as np
 import sys
 
-# YOLO model
 model = YOLO(r"C:\Users\NBC\Desktop\DefectiveRollerDetection\OldModels\Bigfacelatest.pt")
 
-# Shared frame buffer and roller queue
 frame_shape = (960, 1280, 3)
 shared_frame = Array('B', np.zeros(frame_shape, dtype=np.uint8).flatten())
 roller_queue = Queue()
 
-# Locks for thread-safe operations
 frame_lock = Lock()
 
 def read_proximity_status(plc_client, byte_index, bool_index):
@@ -177,7 +174,7 @@ if __name__ == "__main__":
         Process(target=capture_frames, args=(shared_frame, frame_lock), daemon=True),
         Process(target=process_rollers, args=(shared_frame, frame_lock, roller_queue), daemon=True),
         Process(target=handle_slot_control, args=(roller_queue,), daemon=True),
-        Process(target=display_frames, args=(shared_frame, frame_lock), daemon=False)  # Main process
+        Process(target=display_frames, args=(shared_frame, frame_lock), daemon=False)
     ]
 
     # Start processes
