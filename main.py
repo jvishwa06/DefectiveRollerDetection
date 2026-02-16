@@ -446,7 +446,6 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
                         if roller_id == 0:
                             print("No defect Found")
                             continue
-                        
 
                         defect_detected =  False if roller_id == 0 else True
 
@@ -454,16 +453,12 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
 
                         print(" found roller_id has defect " , roller_id , " with defect name " , defect_name)
 
-                        # Track roller in dictionary
                         if roller_id in roller_dict:
-                            roller_dict[roller_id]['defect'] |= defect_detected  # OR logic
+                            roller_dict[roller_id]['defect'] |= defect_detected
                             roller_dict[roller_id]['defect_names'].append(defect_name)
                         else:
                             roller_dict[roller_id] = {'defect': defect_detected, 'defect_names': [defect_name]}
 
-                    # print("OD Roller Dict",roller_dict)
-
-                    # Track last detected frame
                 else:
                     pass
                     # print("No detections found in frame.")
@@ -490,23 +485,16 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
                                   "Rejected" if defect_detected else "Accepted",
                                 list(roller_dict.values())[0])
 
-                    #"Added Bigface Edge Case Logic- Start"
                     extracted_roller_id_check_bigface = int(list(roller_dict.keys())[0])
 
-                    #"Added Bigface Edge Case Logic- End"
-
-                    first_key = next(iter(roller_dict))  # Get the first key
-                    roller_dict.pop(first_key)  # Remove the first key-value pair
-
-                    # print("$$$$$$$$$$$$$$$$$$$$",extracted_roller_id_check_bigface ,roller_updation_dict )
+                    first_key = next(iter(roller_dict))
+                    roller_dict.pop(first_key)
 
                     if roller_updation_dict[extracted_roller_id_check_bigface] == 0 :
 
                         with queue_lock:
-                            # roller_data_od[roller_id] = defect_detected
                             print("queue check ==> " , defect_detected)
                             roller_queue_od.put(defect_detected)
-                            # print_queue_without_emptying(roller_queue_od)
                 
                 elif not shared_data['bigface']:
                     BIGFACE_DETECTED = False
