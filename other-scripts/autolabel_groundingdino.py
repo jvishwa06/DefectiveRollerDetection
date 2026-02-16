@@ -13,7 +13,7 @@ image = Image.open(image_path)
 
 image = image.convert("RGB")
 
-text_labels = [["circular object"]] #Prompt describing the object
+text_labels = [["circular object"]]
 
 inputs = processor(images=image, text=text_labels, return_tensors="pt").to(device)
 

@@ -1,28 +1,17 @@
-import cv2
-import time
-from multiprocessing import Process, Array, Queue, Lock, Value, Manager
-from ultralytics import YOLO
-import snap7
-from snap7.util import set_bool, get_bool
-import numpy as np
-import sys
-from snap7.type import Areas
-import csv
 import os
-import cv2
-import time
-from multiprocessing import Process, Array, Queue, Lock, Value, Manager
-from ultralytics import YOLO
-import snap7
-from snap7.util import set_bool, get_bool
-import numpy as np
 import sys
-from snap7.type import Areas
+import time
 import csv
-import os
+import cv2
+import numpy as np
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
+from multiprocessing import Process, Array, Queue, Lock, Value, Manager
+from ultralytics import YOLO
+import snap7
+from snap7.util import set_bool, get_bool
+from snap7.type import Areas
 
 class RollerInspectionGUI:
     def __init__(self, root, shared_data, command_queue, shared_frame_bigface, shared_frame_od, 
@@ -42,23 +31,18 @@ class RollerInspectionGUI:
         self.frame_lock_od = frame_lock_od
         self.frame_shape = frame_shape
         
-        # Create main container
         self.main_container = ttk.Frame(self.root)
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Control Panel
         self.control_panel = ttk.LabelFrame(self.main_container, text="Control Panel")
         self.control_panel.pack(fill=tk.X, padx=5, pady=5)
         
-        self.start_button = ttk.Button(self.control_panel, text="Start Inspection", 
-                                     command=self.start_inspection)
+        self.start_button = ttk.Button(self.control_panel, text="Start Inspection", command=self.start_inspection)
         self.start_button.pack(side=tk.LEFT, padx=5, pady=5)
         
-        self.stop_button = ttk.Button(self.control_panel, text="Stop Inspection", 
-                                     command=self.stop_inspection, state=tk.DISABLED)
+        self.stop_button = ttk.Button(self.control_panel, text="Stop Inspection", command=self.stop_inspection, state=tk.DISABLED)
         self.stop_button.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # Camera Feeds
         self.camera_frame = ttk.LabelFrame(self.main_container, text="Camera Feeds")
         self.camera_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
@@ -70,7 +54,6 @@ class RollerInspectionGUI:
         self.od_label.grid(row=0, column=1, padx=5, pady=5)
         ttk.Label(self.camera_frame, text="OD Camera").grid(row=1, column=1)
         
-        # Status Panel
         self.status_frame = ttk.LabelFrame(self.main_container, text="Status")
         self.status_frame.pack(fill=tk.X, padx=5, pady=5)
         
@@ -80,7 +63,6 @@ class RollerInspectionGUI:
         self.od_status = ttk.Label(self.status_frame, text="OD: Waiting")
         self.od_status.pack(side=tk.LEFT, padx=10)
         
-        # Statistics Panel
         self.stats_frame = ttk.LabelFrame(self.main_container, text="Statistics")
         self.stats_frame.pack(fill=tk.X, padx=5, pady=5)
         
@@ -93,7 +75,6 @@ class RollerInspectionGUI:
         self.good_rollers = ttk.Label(self.stats_frame, text="Good Rollers: 0")
         self.good_rollers.pack(side=tk.LEFT, padx=10)
 
-        # Initialize update tasks
         self.running = False
         self.processes = []
         self.update_gui()
@@ -104,30 +85,13 @@ class RollerInspectionGUI:
             self.start_button.configure(state=tk.DISABLED)
             self.stop_button.configure(state=tk.NORMAL)
             
-            # Start all inspection processes
             self.processes = [
-                Process(target=capture_frames_bigface, 
-                       args=(self.shared_frame_bigface, self.frame_lock_bigface, self.frame_shape),
-                       daemon=True),
-                Process(target=handle_slot_control_bigface,
-                       args=(roller_queue_bigface, self.shared_data, self.command_queue),
-                       daemon=True),
-                Process(target=process_rollers_bigface,
-                       args=(self.shared_frame_bigface, self.frame_lock_bigface, roller_queue_bigface,
-                             model_bigface, proximity_count_bigface, roller_updation_dict,
-                             queue_lock, self.shared_data, self.frame_shape),
-                       daemon=True),
-                Process(target=process_frames_od,
-                       args=(self.shared_frame_od, self.frame_lock_od, roller_queue_od, queue_lock,
-                             self.shared_data, self.frame_shape, roller_updation_dict),
-                       daemon=True),
-                Process(target=capture_frames_od,
-                       args=(self.shared_frame_od, self.frame_lock_od, self.frame_shape),
-                       daemon=True),
-                Process(target=handle_slot_control_od,
-                       args=(roller_queue_od, self.shared_data, self.command_queue),
-                       daemon=True)
-            ]
+                Process(target=capture_frames_bigface,args=(self.shared_frame_bigface, self.frame_lock_bigface, self.frame_shape),daemon=True),
+                Process(target=handle_slot_control_bigface,args=(roller_queue_bigface, self.shared_data, self.command_queue),daemon=True),
+                Process(target=process_rollers_bigface,args=(self.shared_frame_bigface, self.frame_lock_bigface, roller_queue_bigface,model_bigface, proximity_count_bigface, roller_updation_dict,queue_lock, self.shared_data, self.frame_shape),daemon=True),
+                Process(target=process_frames_od,args=(self.shared_frame_od, self.frame_lock_od, roller_queue_od, queue_lock,self.shared_data, self.frame_shape, roller_updation_dict),daemon=True),
+                Process(target=capture_frames_od,args=(self.shared_frame_od, self.frame_lock_od, self.frame_shape),daemon=True),
+                Process(target=handle_slot_control_od,args=(roller_queue_od, self.shared_data, self.command_queue),daemon=True)]
             
             for process in self.processes:
                 process.start()
@@ -138,7 +102,6 @@ class RollerInspectionGUI:
             self.start_button.configure(state=tk.NORMAL)
             self.stop_button.configure(state=tk.DISABLED)
             
-            # Stop all processes
             for process in self.processes:
                 process.terminate()
                 process.join()
@@ -146,7 +109,6 @@ class RollerInspectionGUI:
 
     def update_gui(self):
         try:
-            # Update camera feeds using annotated frames
             with self.frame_lock_bigface:
                 frame = np.frombuffer(self.shared_annotated_bigface.get_obj(),
                                     dtype=np.uint8).reshape(self.frame_shape)
@@ -167,18 +129,15 @@ class RollerInspectionGUI:
                 self.od_label.configure(image=photo)
                 self.od_label.image = photo
 
-            # Update status indicators
             self.bigface_status.configure(
                 text=f"Bigface: {'Active' if self.shared_data['bigface'] else 'Waiting'}")
             self.od_status.configure(
                 text=f"OD: {'Active' if self.shared_data['od'] else 'Waiting'}")
 
-            # Update statistics from CSV files
 
         except Exception as e:
             print(f"GUI Update Error: {e}")
 
-        # Schedule next update
         if not self.root.quit_flag:
             self.root.after(30, self.update_gui)
 
@@ -261,7 +220,7 @@ def plc_communication(plc_ip, rack, slot, db_number, shared_data, command_queue)
 def trigger_plc_action(plc_client, db_number, byte_index, bool_index, action):
     """Signal the PLC to perform an action (accept/reject)."""
     try:
-        # print(f"PLC Action: Triggering {action.upper()} slot at byte {byte_index}, bit {bool_index}...")
+        print(f"PLC Action: Triggering {action.upper()} slot at byte {byte_index}, bit {bool_index}...")
         data = bytearray(2)
         set_bool(data, byte_index=byte_index, bool_index=bool_index, value=True)
         plc_client.write_area(Areas.DB, db_number, 0, data)
@@ -312,9 +271,7 @@ def handle_slot_control_bigface(roller_queue_bigface,shared_data,command_queue):
         elif not shared_data["bigface"]:
             a = False
 
-def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_queue_bigface, 
-                          model_bigface, proximity_count_bigface, roller_updation_dict, 
-                          queue_lock, shared_data, frame_shape):
+def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_queue_bigface, model_bigface, proximity_count_bigface, roller_updation_dict, queue_lock, shared_data, frame_shape):
     """Process frames for YOLO inference."""
     detected_folder = "captured_bigface_frames"
     os.makedirs(detected_folder, exist_ok=True)
@@ -333,12 +290,10 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
             roller_detected = True
             print("Roller detected in bigface. Capturing frame...")
 
-            # Capture the frame and detect defects
             with frame_lock_bigface:
                 np_frame = np.frombuffer(shared_frame_bigface.get_obj(), dtype=np.uint8).reshape(frame_shape)
                 frame = np_frame.copy()
 
-            # Process the frame for defect detection
             proximity_count_bigface.value += 1
             pc = proximity_count_bigface.value
 
@@ -352,7 +307,6 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
 
             cv2.imwrite(f"{detected_folder}/roller_{pc}.jpg", annotated_frame)
 
-            # Update shared memory for GUI display
             with frame_lock_bigface:
                 np_annotated = np.frombuffer(shared_annotated_bigface.get_obj(), dtype=np.uint8).reshape(frame_shape)
                 np.copyto(np_annotated, annotated_frame) 
@@ -361,11 +315,9 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
 
             roller_queue_bigface.put(defect_detected)
 
-            # Log the defect status in the Bigface CSV file
             status = "Accepted" if not defect_detected else "Rejected"
             log_bigface_status(f"roller_{pc}", "Defective" if defect_detected else "No Defect", status)
             
-            # Update the roller updatation dictionary
             with queue_lock:
                 if defect_detected:
                     roller_updation_dict[pc] = 1  # Mark defect detected
@@ -373,7 +325,6 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
                     roller_updation_dict[pc] = 0  # Mark no defect
             print(f"Roller dict BIGFACE: {roller_updation_dict}")
 
-            # Requeue items to maintain order
             queue_list = []
             while not roller_queue_bigface.empty():
                 item = roller_queue_bigface.get()
@@ -431,7 +382,7 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
                 return idx
         return 0
 
-    model_path = r"C:\Users\NBC\Desktop\WELVISION-Project\FEBRUARY-13-ENDGAME\models\feb27.pt"  # Use the same path as bigface model
+    model_path = r"best.pt"
     
     yolo = YOLO(model_path).to("cuda")
 
@@ -454,18 +405,10 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
 
         if current_od_state and not previous_od_state:
             od_triggered = True
-
             roller_id_counter += 1
-
-            # roller_id = f"roller_{roller_id_counter}"
-            
             roller_dict[roller_id_counter] = {'defect': False , 'defect_names': ["No defect"]}
-
             print(f"\n🎯 New roller detected! Assigned Roller ID: {roller_id_counter} , in frame number : {frame_number + 1}")
             
-            
-
-        # ✅ Capture frames when pulse toggles *both True & False*
         if od_triggered:
                 
                 with frame_lock_od:
@@ -482,7 +425,7 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
                     for box in results[0].boxes.data
                 ] if results and results[0].boxes.data is not None else []
                 
-                detections = sorted(detections, key=lambda x: x[1])  # Sort by x-coordinate
+                detections = sorted(detections, key=lambda x: x[1])
 
                 if len(detections) > 0:
                     
@@ -490,8 +433,6 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
 
                     save_path = f"{detected_folder}/frame{frame_number}.jpg"
                     cv2.imwrite(save_path, annotated_frame)
-
-                    # print("OD Roller Detections", detections)
 
                     roller_only_sorted = [detection for detection in detections if detection[0] == "roller"]
                     roller_only_sorted = [ detection for detection in roller_only_sorted if detection[-1] > 0.80 ]
@@ -605,8 +546,8 @@ if __name__ == "__main__":
     initialize_od_csv()
 
     print("Loading YOLO model...")
-    model_bigface = YOLO(r"C:\Users\NBC\Desktop\WELVISION-Project\FEBRUARY-13-ENDGAME\UI\best (6).pt")
-    model_od = YOLO(r"C:\Users\NBC\Desktop\WELVISION-Project\FEBRUARY-13-ENDGAME\UI\best (6).pt")
+    model_bigface = YOLO(r"bigfacebest.pt")
+    model_od = YOLO(r"odbest.pt")
 
     model_bigface.to('cuda')
     model_od.to('cuda')
@@ -640,18 +581,12 @@ if __name__ == "__main__":
     frame_lock_od = Lock()
     queue_lock = Lock()
 
-    plc_process = Process(
-        target=plc_communication, 
-        args=(PLC_IP, RACK, SLOT, DB_NUMBER, shared_data, command_queue),
-        daemon=True
-    )
+    plc_process = Process(target=plc_communication, args=(PLC_IP, RACK, SLOT, DB_NUMBER, shared_data, command_queue),daemon=True)
     plc_process.start()
     try:
-    # Initialize GUI
         root = tk.Tk()
         root.quit_flag = False  
 
-        # Create GUI instance
         gui = RollerInspectionGUI(
             root, shared_data, command_queue,
             shared_frame_bigface, shared_frame_od,
@@ -677,7 +612,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Main: Error occurred: {e}")
     finally:
-        # Ensure cleanup
         if 'gui' in locals() and gui.running:
             gui.stop_inspection()
         if 'plc_process' in locals() and plc_process.is_alive():
@@ -688,19 +622,9 @@ if __name__ == "__main__":
         Process(target=capture_frames_bigface, args=(shared_frame_bigface, frame_lock_bigface,frame_shape), daemon=True),
         Process(target=handle_slot_control_bigface, args=(roller_queue_bigface,shared_data,command_queue), daemon=True),
         Process(target=process_rollers_bigface,args=(shared_frame_bigface, frame_lock_bigface, roller_queue_bigface,model_bigface,proximity_count_bigface,roller_updation_dict,queue_lock,shared_data,frame_shape), daemon=True),
-        Process(
-            target=process_frames_od,
-            args=(shared_frame_od, frame_lock_od, roller_queue_od, queue_lock, shared_data, frame_shape, roller_updation_dict),
-            daemon=True),
-        Process(
-            target=capture_frames_od,
-            args=(shared_frame_od, frame_lock_od,frame_shape),
-            daemon=True),
-        Process(
-            target=handle_slot_control_od,
-            args=(roller_queue_od,shared_data,command_queue),
-            daemon=True)
-    ]
+        Process(target=process_frames_od,args=(shared_frame_od, frame_lock_od, roller_queue_od, queue_lock, shared_data, frame_shape, roller_updation_dict),daemon=True),
+        Process(target=capture_frames_od,args=(shared_frame_od, frame_lock_od,frame_shape),daemon=True),
+        Process(target=handle_slot_control_od,args=(roller_queue_od,shared_data,command_queue),daemon=True)]
 
     for process in processes:
         process.start()
