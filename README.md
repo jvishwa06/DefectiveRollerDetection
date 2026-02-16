@@ -3,6 +3,8 @@
 ## Overview
 The **Defective Tapper Roller Detection** system is an advanced solution to identify defects in industrial rollers. Using state-of-the-art machine learning and computer vision techniques, this system is designed to detect various defects such as rust, dent, damage, scratches, and more across different parts of the roller. By integrating with a Siemens S7 PLC, the system analyzes roller images from an industrial camera and determines whether each roller should be accepted or rejected based on defect detection.Graphical User Interface (GUI) built with Tkinter is provided for easy interaction with the system, allowing users to configure settings, visualize results, and control the roller inspection process.
 
+![Roller Image](images/rollers.jpeg)
+
 ## Key Features
 - **Defect Detection**: Detects various defects such as:
   - Rust
