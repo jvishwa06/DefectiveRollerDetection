@@ -13,6 +13,10 @@ import snap7
 from snap7.util import set_bool, get_bool
 from snap7.type import Areas
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BIGFACE_MODEL_PATH = os.path.join(BASE_DIR, "models", "bigface-model.onnx")
+OD_MODEL_PATH = os.path.join(BASE_DIR, "models", "od-model.onnx")
+
 class RollerInspectionGUI:
     def __init__(self, root, shared_data, command_queue, shared_frame_bigface, shared_frame_od, 
                  frame_lock_bigface, frame_lock_od, frame_shape, 
@@ -89,7 +93,7 @@ class RollerInspectionGUI:
                 Process(target=capture_frames_bigface,args=(self.shared_frame_bigface, self.frame_lock_bigface, self.frame_shape),daemon=True),
                 Process(target=handle_slot_control_bigface,args=(roller_queue_bigface, self.shared_data, self.command_queue),daemon=True),
                 Process(target=process_rollers_bigface,args=(self.shared_frame_bigface, self.frame_lock_bigface, roller_queue_bigface,model_bigface, proximity_count_bigface, roller_updation_dict,queue_lock, self.shared_data, self.frame_shape),daemon=True),
-                Process(target=process_frames_od,args=(self.shared_frame_od, self.frame_lock_od, roller_queue_od, queue_lock,self.shared_data, self.frame_shape, roller_updation_dict),daemon=True),
+                Process(target=process_frames_od,args=(self.shared_frame_od, self.frame_lock_od, roller_queue_od, queue_lock,self.shared_data, self.frame_shape, roller_updation_dict, model_od),daemon=True),
                 Process(target=capture_frames_od,args=(self.shared_frame_od, self.frame_lock_od, self.frame_shape),daemon=True),
                 Process(target=handle_slot_control_od,args=(roller_queue_od, self.shared_data, self.command_queue),daemon=True)]
             
@@ -278,7 +282,7 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
 
     black_frame = np.zeros(frame_shape, dtype=np.uint8)
     try:
-        results = model_bigface.predict(black_frame, device=0, conf=0.3, verbose=False)
+        results = model_bigface.predict(black_frame, conf=0.3, verbose=False)
         print("Black image YOLO processing for bigface complete.")
     except Exception as e:
         print(f"Error during YOLO inference on black image: {e}")
@@ -302,7 +306,7 @@ def process_rollers_bigface(shared_frame_bigface, frame_lock_bigface, roller_que
                 print("Defect class 'damage' not found in model.")
                 continue
 
-            results = model_bigface.predict(frame, device=0, conf=0.3, verbose=False)
+            results = model_bigface.predict(frame, conf=0.3, verbose=False)
             annotated_frame = results[0].plot()
 
             cv2.imwrite(f"{detected_folder}/roller_{pc}.jpg", annotated_frame)
@@ -356,7 +360,7 @@ def capture_frames_od(shared_frame_od, frame_lock_od,frame_shape):
             print("Failed to capture frame.")
             time.sleep(0.01)
 
-def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_lock, shared_data, frame_shape, roller_updation_dict):
+def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_lock, shared_data, frame_shape, roller_updation_dict, model_od):
     """Process frames for YOLO inference and track roller defects with pulse debounce & proper exit handling."""
 
     detected_folder = "captured_od_frames"
@@ -382,13 +386,11 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
                 return idx
         return 0
 
-    model_path = r"best.pt"
-    
-    yolo = YOLO(model_path).to("cuda")
+    yolo = model_od
 
     try:
         black_frame = np.zeros(frame_shape, dtype=np.uint8)
-        yolo.predict(black_frame, device=0, conf=0.3, verbose=False)
+        yolo.predict(black_frame, conf=0.3, verbose=False)
         print("Black image YOLO processing for od complete.")
     except Exception as e:
         print(f"Error during YOLO inference on black image: {e}")
@@ -414,7 +416,7 @@ def process_frames_od(shared_frame_od, frame_lock_od, roller_queue_od, queue_loc
                 with frame_lock_od:
                     np_frame = np.frombuffer(shared_frame_od.get_obj(), dtype=np.uint8).reshape(frame_shape)
     
-                results = yolo.predict(np_frame, device=0, conf=0.3, verbose=False)
+                results = yolo.predict(np_frame, conf=0.3, verbose=False)
                 annotated_frame = results[0].plot()
                 with frame_lock_od:
                     np_annotated = np.frombuffer(shared_annotated_od.get_obj(), dtype=np.uint8).reshape(frame_shape)
@@ -534,11 +536,8 @@ if __name__ == "__main__":
     initialize_od_csv()
 
     print("Loading YOLO model...")
-    model_bigface = YOLO(r"bigfacebest.pt")
-    model_od = YOLO(r"odbest.pt")
-
-    model_bigface.to('cuda')
-    model_od.to('cuda')
+    model_bigface = YOLO(BIGFACE_MODEL_PATH)
+    model_od = YOLO(OD_MODEL_PATH)
 
     frame_shape = (960, 1280, 3)
 
@@ -610,7 +609,7 @@ if __name__ == "__main__":
         Process(target=capture_frames_bigface, args=(shared_frame_bigface, frame_lock_bigface,frame_shape), daemon=True),
         Process(target=handle_slot_control_bigface, args=(roller_queue_bigface,shared_data,command_queue), daemon=True),
         Process(target=process_rollers_bigface,args=(shared_frame_bigface, frame_lock_bigface, roller_queue_bigface,model_bigface,proximity_count_bigface,roller_updation_dict,queue_lock,shared_data,frame_shape), daemon=True),
-        Process(target=process_frames_od,args=(shared_frame_od, frame_lock_od, roller_queue_od, queue_lock, shared_data, frame_shape, roller_updation_dict),daemon=True),
+        Process(target=process_frames_od,args=(shared_frame_od, frame_lock_od, roller_queue_od, queue_lock, shared_data, frame_shape, roller_updation_dict, model_od),daemon=True),
         Process(target=capture_frames_od,args=(shared_frame_od, frame_lock_od,frame_shape),daemon=True),
         Process(target=handle_slot_control_od,args=(roller_queue_od,shared_data,command_queue),daemon=True)]
 
