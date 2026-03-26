@@ -63,6 +63,14 @@ The system is designed to inspect rollers as they move on a conveyor belt. The i
 ### Threshold Adjustment:
 You can fine-tune the threshold for individual defect classes by adjusting the parameters in the configuration file (`config.yaml`).
 
+## Dataset Information
+| Property      | Value              |
+| ------------- | ------------------ |
+| Dataset Size  | 14,000 images      |
+| Classes       | 9 defect types     |
+| Format        | YOLO format        |
+| Split         | 80/10/10           |
+
 ## Tkinter User Interface
 A simple **Tkinter GUI** is included to allow users to interact with the roller detection system.
 
@@ -87,6 +95,40 @@ The system has undergone several optimizations to improve performance:
 - **Sahi Inference**: Optimized inference for large images.
 - **Quantization**: Reduced model size and improved inference speed by quantizing the trained models.
 - **Data Augmentation**: Enhanced model accuracy by performing extensive data augmentation and preprocessing.
+
+## Performance Metrics
+
+### Training Losses
+| Loss Metric | Value |
+| ----------- | ----- |
+| Box Loss    | 0.34  |
+| Cls Loss    | 0.18  |
+| DFL Loss    | 0.28  |
+
+### Evaluation Metrics
+| Metric     | Value    |
+| ---------- | -------- |
+| Precision  | 0.95     |
+| Recall     | 0.92     |
+| mAP50      | 0.98     |
+| mAP50-95   | 0.77     |
+
+### Training Parameters
+| Parameter        | Value                          |
+| ---------------- | ------------------------------ |
+| Batch Size       | 32                             |
+| Epochs           | 200                            |
+| Patience         | 20                             |
+
+### Model Conversion and Inference Latency
+The PyTorch model has been converted to TensorRT for optimized inference on NVIDIA GPUs.
+
+| Model Format       | Latency  |
+| ------------------ | -------- |
+| PyTorch (.pt)      | 8-10 ms  |
+| TensorRT (.engine) | 5-6 ms   |
+
+**Performance Improvement**: TensorRT model achieves ~40-50% faster inference latency compared to the PyTorch model.
 
 ## Contributing
 Contributions are welcome! Please feel free to fork this repository, submit issues, and create pull requests.
